@@ -147,15 +147,20 @@ namespace Tankontroller.Scenes
                 }
 
                 //If there is only on player remaining, the GameOverScene is transitioned to
+                //audio bug should be fixed now since we stop the tankMoveSound (sfx) before we transition to a new scene
                 List<int> remainingTeamsList = remainingTeams();
                 if (remainingTeamsList.Count <= 1)
                 {
-                    int winner = -1;
-                    if (remainingTeamsList.Count == 1)
-                    {
-                        winner = remainingTeamsList[0];
-                    }
-                    Tankontroller.Instance().SM().Transition(new GameOverScene(mBackgroundTexture, m_Teams, winner));
+                    tankMoveSound.Stop();
+
+                    int winner = remainingTeamsList.Count == 1
+                        ? remainingTeamsList[0]
+                        : -1;
+
+                    Tankontroller.Instance().SM().Transition(
+                        new GameOverScene(mBackgroundTexture, m_Teams, winner));
+
+                    return;
                 }
 
                 //Updates the track particles for each tank
@@ -196,6 +201,7 @@ namespace Tankontroller.Scenes
         {
             if (Keyboard.GetState().IsKeyDown(Keys.Escape))
             {
+                tankMoveSound.Stop();
                 mGameInstance.GetControllerManager().SetAllTheLEDsWhite();
                 mGameInstance.SM().Transition(null);
             }

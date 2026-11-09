@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Tankontroller.World;
 using Tankontroller.World.Shapes;
+using Assert = Xunit.Assert;
 
 namespace TankontrollerTests
 {

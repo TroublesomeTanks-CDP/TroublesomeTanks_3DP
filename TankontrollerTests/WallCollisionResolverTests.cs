@@ -597,6 +597,98 @@ namespace TankontrollerTests
 
         #endregion
 
+        #region Blocked move and wall faces
+
+        [Fact]
+        public void FindFurthestClearPosition_MoveStoppedByVerticalWall_ReportsTheWallAndItsFaceNormal()
+        {
+            Vector2 start = new(50f, 100f);
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(start);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            BlockedMove move = WallCollisionResolver.FindFurthestClearPosition(transform, shape, start, new Vector2(70f, 108f), new List<CollisionShape> { wall });
+
+            Vector2 normal = move.ContactNormal ?? Vector2.Zero;
+            Assert.True(move.IsBlocked);
+            Assert.Same(wall, move.BlockingWall);
+            Assert.InRange(move.Position.X, 59.98f, 60.01f);
+            Assert.InRange(move.Position.Y, 103.98f, 104.02f);
+            Assert.InRange(normal.X, -1.001f, -0.999f);
+            Assert.InRange(normal.Y, -0.001f, 0.001f);
+        }
+
+        [Fact]
+        public void FindFurthestClearPosition_ClearPath_ReportsNoWallAndReachesTheTarget()
+        {
+            Vector2 start = new(30f, 100f);
+            Vector2 target = new(40f, 100f);
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(start);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            BlockedMove move = WallCollisionResolver.FindFurthestClearPosition(transform, shape, start, target, new List<CollisionShape> { wall });
+
+            Assert.False(move.IsBlocked);
+            Assert.Null(move.BlockingWall);
+            Assert.Null(move.ContactNormal);
+            Assert.Equal(target, move.Position);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void FindFurthestClearPosition_IntoCorner_ReportsTheWallTouchedFirst(bool pVerticalWallFirst)
+        {
+            Vector2 start = new(50f, 100f);
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(start);
+            RectangleAxisAlignedShape verticalWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape horizontalWall = CreateAlignedWall(new Vector2(0f, 150f), HORIZONTAL_WALL_SIZE);
+            List<CollisionShape> walls = pVerticalWallFirst
+                ? new List<CollisionShape> { verticalWall, horizontalWall }
+                : new List<CollisionShape> { horizontalWall, verticalWall };
+
+            BlockedMove move = WallCollisionResolver.FindFurthestClearPosition(transform, shape, start, new Vector2(75f, 130f), walls);
+
+            Assert.Same(verticalWall, move.BlockingWall);
+        }
+
+        [Theory]
+        [InlineData(-1f, 0f, true)]
+        [InlineData(1f, 0f, true)]
+        [InlineData(0f, 1f, true)]
+        [InlineData(-0.882f, 0.471f, false)]
+        [InlineData(-0.707f, 0.707f, false)]
+        public void IsWallFaceNormal_AlignedWall_OnlyAcceptsDirectionsAlongItsFaces(float pNormalX, float pNormalY, bool pExpected)
+        {
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            bool isFaceNormal = WallCollisionResolver.IsWallFaceNormal(wall, new Vector2(pNormalX, pNormalY));
+
+            Assert.Equal(pExpected, isFaceNormal);
+        }
+
+        [Fact]
+        public void IsWallFaceNormal_RotatedWall_FollowsTheWallsOwnAxes()
+        {
+            float rotation = 0.5f;
+            RectangleOrientedShape wall = CreateOrientedWall(WALL_CENTRE, VERTICAL_WALL_SIZE, rotation);
+            Vector2 alongWallLength = new(MathF.Cos(rotation), MathF.Sin(rotation));
+            Vector2 alongWallWidth = new(-MathF.Sin(rotation), MathF.Cos(rotation));
+
+            Assert.True(WallCollisionResolver.IsWallFaceNormal(wall, alongWallLength));
+            Assert.True(WallCollisionResolver.IsWallFaceNormal(wall, alongWallWidth));
+            Assert.False(WallCollisionResolver.IsWallFaceNormal(wall, Vector2.UnitX));
+        }
+
+        [Fact]
+        public void IsWallFaceNormal_ShapeWithoutFaces_ReturnsFalse()
+        {
+            CircleShape circle = new(new Transform(WALL_CENTRE), 20f);
+
+            Assert.False(WallCollisionResolver.IsWallFaceNormal(circle, Vector2.UnitX));
+        }
+
+        #endregion
+
         #region Collision normals for a rotated tank
 
         [Theory]

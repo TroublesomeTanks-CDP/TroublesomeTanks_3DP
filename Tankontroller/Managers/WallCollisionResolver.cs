@@ -37,6 +37,9 @@ namespace Tankontroller.Managers
         /// <summary> Number of times the gap between the last clear position and the first blocked position is halved. </summary>
         private const int BISECTION_STEPS = 8;
 
+        /// <summary> How closely a collision normal must line up with a wall's face direction to count as a face contact (a dot product, 1 is exact). </summary>
+        private const float FACE_NORMAL_TOLERANCE = 0.999f;
+
         /// <summary>
         /// Moves a tank out of any walls it overlaps after moving.
         /// <br></br>
@@ -77,7 +80,7 @@ namespace Tankontroller.Managers
                 if (!IsOverlappingAny(pTankShape, pWalls))
                 {
                     Vector2 target = pTransform.Position + movement;
-                    pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pTransform.Position, target, pWalls);
+                    pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pTransform.Position, target, pWalls).Position;
                     if (!IsOverlappingAny(pTankShape, pWalls))
                     {
                         return;
@@ -114,8 +117,8 @@ namespace Tankontroller.Managers
         /// Steps along the path to find the first overlap, then narrows down the exact point by halving the gap.
         /// The tank's transform is moved while searching, so the caller must set its position afterwards.
         /// </summary>
-        /// <returns> The furthest position along the path where the tank is not overlapping any wall </returns>
-        private static Vector2 FindFurthestClearPosition(Transform pTransform, CollisionShape pTankShape, Vector2 pStart, Vector2 pTarget, IReadOnlyList<CollisionShape> pWalls)
+        /// <returns> The furthest clear position along the path, and the wall that stopped the tank at that point if there was one </returns>
+        internal static BlockedMove FindFurthestClearPosition(Transform pTransform, CollisionShape pTankShape, Vector2 pStart, Vector2 pTarget, IReadOnlyList<CollisionShape> pWalls)
         {
             float distance = Vector2.Distance(pStart, pTarget);
             int marchSteps = Math.Max(1, (int)MathF.Ceiling(distance / MARCH_STEP_PIXELS));
@@ -151,21 +154,66 @@ namespace Tankontroller.Managers
                 }
             }
 
-            return Vector2.Lerp(pStart, pTarget, clearFraction);
+            Vector2 clearPosition = Vector2.Lerp(pStart, pTarget, clearFraction);
+
+            // Look at the first position past the furthest clear one to see which wall the tank ran into.
+            pTransform.Position = Vector2.Lerp(pStart, pTarget, blockedFraction);
+            CollisionShape blockingWall = FindFirstOverlappingWall(pTankShape, pWalls);
+            if (blockingWall == null)
+            {
+                return new BlockedMove(clearPosition, null, null);
+            }
+
+            return new BlockedMove(clearPosition, blockingWall, pTankShape.Intersects(blockingWall).CollisionNormal);
+        }
+
+        /// <summary>
+        /// Checks whether a collision normal points along one of the wall's own faces. At a corner or the end of a wall,
+        /// the normal can be one of the tank's own axes instead, which does not describe the wall's surface.
+        /// </summary>
+        /// <param name="pNormal"> A unit vector pointing towards or away from the wall. </param>
+        /// <returns> True if the contact is along a face of the wall, false if it is not or the wall's shape is not supported </returns>
+        internal static bool IsWallFaceNormal(CollisionShape pWall, Vector2 pNormal)
+        {
+            float wallRotation;
+            if (pWall is RectangleAxisAlignedShape)
+            {
+                wallRotation = 0f;
+            }
+            else if (pWall is RectangleOrientedShape orientedWall)
+            {
+                wallRotation = orientedWall.WorldRotation;
+            }
+            else
+            {
+                return false;
+            }
+
+            Vector2 faceAxisX = new Vector2(MathF.Cos(wallRotation), MathF.Sin(wallRotation));
+            Vector2 faceAxisY = new Vector2(-MathF.Sin(wallRotation), MathF.Cos(wallRotation));
+
+            return MathF.Abs(Vector2.Dot(pNormal, faceAxisX)) >= FACE_NORMAL_TOLERANCE
+                || MathF.Abs(Vector2.Dot(pNormal, faceAxisY)) >= FACE_NORMAL_TOLERANCE;
         }
 
         /// <returns> True if the tank shape overlaps any of the walls </returns>
         private static bool IsOverlappingAny(CollisionShape pTankShape, IReadOnlyList<CollisionShape> pWalls)
         {
+            return FindFirstOverlappingWall(pTankShape, pWalls) != null;
+        }
+
+        /// <returns> The first wall in the list that the tank shape overlaps, or null if there is none </returns>
+        private static CollisionShape FindFirstOverlappingWall(CollisionShape pTankShape, IReadOnlyList<CollisionShape> pWalls)
+        {
             foreach (CollisionShape wall in pWalls)
             {
                 if (pTankShape.Intersects(wall).HasCollided)
                 {
-                    return true;
+                    return wall;
                 }
             }
 
-            return false;
+            return null;
         }
 
         /// <summary>

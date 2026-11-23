@@ -1,4 +1,5 @@
-﻿using Tankontroller.World;
+﻿using System.Collections.Generic;
+using Tankontroller.World;
 using Tankontroller.World.Shapes;
 
 namespace Tankontroller.Managers
@@ -17,19 +18,12 @@ namespace Tankontroller.Managers
         public static bool IsWallSlidingPrevented { get; set; } = DGS.Instance.GetBool("PREVENT_TANK_WALL_SLIDING");
 
         /// <summary>
-        /// Moves a tank out of a wall it is overlapping. If the tank cannot be moved clear, it is put back to its previous position.
+        /// Moves a tank out of every wall it is overlapping.
+        /// If the tank cannot be moved clear of a wall, it is put back to the placement PutBack would use.
         /// </summary>
-        /// <returns> True if the tank was overlapping the wall and has been moved clear, otherwise false </returns>
-        public static bool ResolveTankWallCollision(Tank pTank, CollisionShape pWall)
+        public static void ResolveTankWallCollisions(Tank pTank, IReadOnlyList<CollisionShape> pWalls)
         {
-            WallPushOutResult result = WallCollisionResolver.PushOutOfWall(pTank.Transform, pTank.CollisionShape, pWall);
-
-            if (result == WallPushOutResult.FAILED)
-            {
-                pTank.PutBack();
-            }
-
-            return result == WallPushOutResult.RESOLVED;
+            WallCollisionResolver.ResolveFrame(pTank.Transform, pTank.CollisionShape, pTank.PutBackPlacement, pWalls);
         }
     }
 }

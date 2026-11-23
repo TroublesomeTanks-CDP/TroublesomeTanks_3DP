@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using System.Collections.Generic;
 using Tankontroller.World;
 using Tankontroller.World.Shapes;
 
@@ -28,6 +29,28 @@ namespace Tankontroller.Managers
 
         /// <summary> Maximum number of iterations before giving up, to avoid an infinite loop. </summary>
         private const int MAX_PUSH_OUT_STEPS = 200;
+
+        /// <summary>
+        /// Moves a tank out of every wall it overlaps, one wall at a time in list order.
+        /// If the tank cannot be moved clear of a wall, it is put back to pRestorePlacement and the next wall is checked.
+        /// </summary>
+        /// <param name="pTransform"> The transform of the tank. This is moved if the tank overlaps a wall. </param>
+        /// <param name="pTankShape"> The collision shape of the tank. It must be owned by pTransform. </param>
+        /// <param name="pRestorePlacement"> Where the tank is put back to when a push-out fails. </param>
+        /// <param name="pWalls"> The collision shapes of the walls. </param>
+        public static void ResolveFrame(Transform pTransform, CollisionShape pTankShape, TankPlacement pRestorePlacement, IReadOnlyList<CollisionShape> pWalls)
+        {
+            foreach (CollisionShape wall in pWalls)
+            {
+                WallPushOutResult result = PushOutOfWall(pTransform, pTankShape, wall);
+
+                if (result == WallPushOutResult.FAILED)
+                {
+                    pTransform.Position = pRestorePlacement.Position;
+                    pTransform.Rotation = pRestorePlacement.Rotation;
+                }
+            }
+        }
 
         /// <summary>
         /// Moves a tank away from a wall along the collision normal, in small steps, until it no longer overlaps the wall.

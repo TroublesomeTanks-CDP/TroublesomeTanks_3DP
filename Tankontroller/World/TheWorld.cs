@@ -193,21 +193,10 @@ namespace Tankontroller.World
                     }
                 }
 
-                ResolveWallCollisions(tank);
+                CollisionManager.ResolveTankWallCollisions(tank, mWallColliders);
                 ResolveTankCollisions(tank);
 
                 tank.CommitPlacement();
-            }
-        }
-
-        /// <summary>
-        /// Moves a tank out of any wall or play area edge it is overlapping
-        /// </summary>
-        private void ResolveWallCollisions(Tank pTank)
-        {
-            foreach (CollisionShape wall in mWallColliders)
-            {
-                CollisionManager.ResolveTankWallCollision(pTank, wall);
             }
         }
 

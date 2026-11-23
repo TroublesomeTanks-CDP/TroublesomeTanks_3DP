@@ -141,6 +141,9 @@ namespace Tankontroller.World
         /// <summary> The placement the tank had when CommitPlacement was last called, which is the end of the previous frame </summary>
         public TankPlacement CommittedPlacement => mCommittedPlacement;
 
+        /// <summary> The placement that PutBack returns the tank to </summary>
+        public TankPlacement PutBackPlacement => new TankPlacement(mOldPosition, mOldRotation);
+
         public void GetCorners(Vector2[] pCorners)
         {
             if (pCorners.Length == 4)

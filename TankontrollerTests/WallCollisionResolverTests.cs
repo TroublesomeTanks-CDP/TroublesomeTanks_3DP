@@ -203,5 +203,92 @@ namespace TankontrollerTests
         }
 
         #endregion
+
+        #region ResolveFrame
+
+        [Fact]
+        public void ResolveFrame_NoWalls_DoesNotMoveTank()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
+            TankPlacement restorePlacement = new(Vector2.Zero, 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape>());
+
+            Assert.Equal(new Vector2(70f, 100f), transform.Position);
+        }
+
+        [Fact]
+        public void ResolveFrame_TankClearOfAllWalls_DoesNotMoveTank()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(50f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement restorePlacement = new(Vector2.Zero, 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { wall });
+
+            Assert.Equal(new Vector2(50f, 100f), transform.Position);
+        }
+
+        [Fact]
+        public void ResolveFrame_TankOverlappingWall_PushesTankOut()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement restorePlacement = new(Vector2.Zero, 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { wall });
+
+            Assert.Equal(new Vector2(60f, 100f), transform.Position);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void ResolveFrame_TankInCorner_EndsInSamePlaceWhateverTheWallOrder(bool pVerticalWallFirst)
+        {
+            // The vertical wall is on the tank's right and the horizontal wall is below it.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 125f));
+            RectangleAxisAlignedShape verticalWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape horizontalWall = CreateAlignedWall(new Vector2(0f, 150f), HORIZONTAL_WALL_SIZE);
+            List<CollisionShape> walls = pVerticalWallFirst
+                ? new List<CollisionShape> { verticalWall, horizontalWall }
+                : new List<CollisionShape> { horizontalWall, verticalWall };
+            TankPlacement restorePlacement = new(Vector2.Zero, 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, walls);
+
+            Assert.Equal(new Vector2(60f, 120f), transform.Position);
+            Assert.False(shape.Intersects(verticalWall).HasCollided);
+            Assert.False(shape.Intersects(horizontalWall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_PushOutFails_PutsTankBackToRestorePlacement()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(WALL_CENTRE);
+            RectangleAxisAlignedShape hugeWall = CreateAlignedWall(WALL_CENTRE, new Vector2(2000f, 2000f));
+            TankPlacement restorePlacement = new(new Vector2(10f, 20f), 0.5f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { hugeWall });
+
+            Assert.Equal(restorePlacement.Position, transform.Position);
+            Assert.Equal(restorePlacement.Rotation, transform.Rotation);
+        }
+
+        [Fact]
+        public void ResolveFrame_PushOutFails_StillChecksTheNextWall()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(WALL_CENTRE);
+            RectangleAxisAlignedShape hugeWall = CreateAlignedWall(WALL_CENTRE, new Vector2(2000f, 2000f));
+            RectangleAxisAlignedShape smallWall = CreateAlignedWall(new Vector2(10f, 20f), new Vector2(20f, 20f));
+            TankPlacement restorePlacement = new(new Vector2(10f, 20f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { hugeWall, smallWall });
+
+            // The tank is put back on top of the small wall, then pushed along the x axis until it is clear.
+            Assert.Equal(new Vector2(50f, 20f), transform.Position);
+        }
+
+        #endregion
     }
 }

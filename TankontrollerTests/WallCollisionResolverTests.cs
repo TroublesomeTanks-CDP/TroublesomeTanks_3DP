@@ -44,6 +44,14 @@ namespace TankontrollerTests
             return halfLength + halfWidth;
         }
 
+        /// <summary> Resolves a tank that has moved to its current position from pStart, with sliding prevented. </summary>
+        private static void ResolveWithSlidingPrevented(Transform pTransform, CollisionShape pShape, Vector2 pStart, List<CollisionShape> pWalls)
+        {
+            TankPlacement startOfFrame = new(pStart, pTransform.Rotation);
+
+            WallCollisionResolver.ResolveFrame(pTransform, pShape, startOfFrame, startOfFrame, pWalls, true);
+        }
+
         #endregion
 
         #region No overlap
@@ -212,7 +220,7 @@ namespace TankontrollerTests
             (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape>());
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape>(), false);
 
             Assert.Equal(new Vector2(70f, 100f), transform.Position);
         }
@@ -224,7 +232,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { wall });
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { wall }, false);
 
             Assert.Equal(new Vector2(50f, 100f), transform.Position);
         }
@@ -236,7 +244,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { wall });
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { wall }, false);
 
             Assert.Equal(new Vector2(60f, 100f), transform.Position);
         }
@@ -255,7 +263,7 @@ namespace TankontrollerTests
                 : new List<CollisionShape> { horizontalWall, verticalWall };
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, walls);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, walls, false);
 
             Assert.Equal(new Vector2(60f, 120f), transform.Position);
             Assert.False(shape.Intersects(verticalWall).HasCollided);
@@ -269,7 +277,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape hugeWall = CreateAlignedWall(WALL_CENTRE, new Vector2(2000f, 2000f));
             TankPlacement restorePlacement = new(new Vector2(10f, 20f), 0.5f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { hugeWall });
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { hugeWall }, false);
 
             Assert.Equal(restorePlacement.Position, transform.Position);
             Assert.Equal(restorePlacement.Rotation, transform.Rotation);
@@ -283,10 +291,143 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape smallWall = CreateAlignedWall(new Vector2(10f, 20f), new Vector2(20f, 20f));
             TankPlacement restorePlacement = new(new Vector2(10f, 20f), 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, new List<CollisionShape> { hugeWall, smallWall });
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { hugeWall, smallWall }, false);
 
             // The tank is put back on top of the small wall, then pushed along the x axis until it is clear.
             Assert.Equal(new Vector2(50f, 20f), transform.Position);
+        }
+
+        #endregion
+
+        #region ResolveFrame with sliding prevented
+
+        [Fact]
+        public void ResolveFrame_SlidingAllowed_AngledMove_StillSlides()
+        {
+            Vector2 start = new(50f, 100f);
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement startOfFrame = new(start, 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, false);
+
+            Assert.Equal(new Vector2(60f, 108f), transform.Position);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_MoveClearOfWalls_MovesFully()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(40f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(30f, 100f), new List<CollisionShape> { wall });
+
+            Assert.Equal(new Vector2(40f, 100f), transform.Position);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_HeadOn_StopsAtWall()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(50f, 100f), new List<CollisionShape> { wall });
+
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.Equal(100f, transform.Position.Y);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_AngledIntoVerticalWall_StopsWhereItFirstTouches()
+        {
+            // Sliding would leave the tank at (60, 108). Moving along the path it takes, it first touches the wall at (60, 104).
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(50f, 100f), new List<CollisionShape> { wall });
+
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.InRange(transform.Position.Y, 103.98f, 104.02f);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_AngledIntoHorizontalWall_StopsWhereItFirstTouches()
+        {
+            // Sliding would leave the tank at (108, 70). It first touches the wall at (106.4, 70).
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(108f, 75f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, HORIZONTAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(100f, 50f), new List<CollisionShape> { wall });
+
+            Assert.InRange(transform.Position.X, 106.38f, 106.42f);
+            Assert.InRange(transform.Position.Y, 69.98f, 70.01f);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_ReversingAtAngle_StopsWhereItFirstTouches()
+        {
+            float rotation = MathF.PI + 0.4f;
+            Vector2 forward = new(MathF.Cos(rotation), MathF.Sin(rotation));
+            Vector2 start = new(45f, 100f);
+            Vector2 reversedPosition = start - forward * 12f;
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(reversedPosition, rotation);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, start, new List<CollisionShape> { wall });
+
+            float touchingX = 90f - TankHalfWidthAlongX(rotation);
+            float fractionTravelled = (touchingX - start.X) / (reversedPosition.X - start.X);
+            float expectedY = start.Y + fractionTravelled * (reversedPosition.Y - start.Y);
+            Assert.InRange(transform.Position.X, touchingX - 0.03f, touchingX + 0.01f);
+            Assert.InRange(transform.Position.Y, expectedY - 0.03f, expectedY + 0.03f);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_AlreadyTouchingWall_DoesNotMoveAlongWall()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(65f, 108f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(60f, 100f), new List<CollisionShape> { wall });
+
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.InRange(transform.Position.Y, 99.99f, 100.02f);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_StartedInsideWall_PushesTankOut()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(72f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(70f, 100f), new List<CollisionShape> { wall });
+
+            Assert.Equal(new Vector2(60f, 100f), transform.Position);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void ResolveFrame_SlidingPrevented_IntoCorner_StopsAtFirstWallWhateverTheWallOrder(bool pVerticalWallFirst)
+        {
+            // The tank reaches the vertical wall at (60, 112), before it would reach the horizontal wall.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(75f, 130f));
+            RectangleAxisAlignedShape verticalWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape horizontalWall = CreateAlignedWall(new Vector2(0f, 150f), HORIZONTAL_WALL_SIZE);
+            List<CollisionShape> walls = pVerticalWallFirst
+                ? new List<CollisionShape> { verticalWall, horizontalWall }
+                : new List<CollisionShape> { horizontalWall, verticalWall };
+
+            ResolveWithSlidingPrevented(transform, shape, new Vector2(50f, 100f), walls);
+
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.InRange(transform.Position.Y, 111.98f, 112.02f);
+            Assert.False(shape.Intersects(verticalWall).HasCollided);
+            Assert.False(shape.Intersects(horizontalWall).HasCollided);
         }
 
         #endregion

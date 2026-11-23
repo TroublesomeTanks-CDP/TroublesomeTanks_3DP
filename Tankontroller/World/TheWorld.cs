@@ -40,6 +40,7 @@ namespace Tankontroller.World
         private RectangleAxisAlignedShape[] mPlayAreaCollisionShapes = new RectangleAxisAlignedShape[4];
         private List<Tank> mTanks = new List<Tank>();
         private List<RectWall> mWalls;
+        private List<CollisionShape> mWallColliders = new List<CollisionShape>();
         private List<PickupSpawnPoint> mPickupSpawnPositions = new List<PickupSpawnPoint>();
         private List<Pickup> mPickups = new List<Pickup>();
         private float mPickupSpawnTimer = PICKUP_SPAWN_TIME;
@@ -55,6 +56,7 @@ namespace Tankontroller.World
             mPickupSpawnPositions = pPickupSpawnPositions;
             mPlayAreaOutline = new Rectangle(mPlayArea.X - 5, mPlayArea.Y - 5, mPlayArea.Width + 10, mPlayArea.Height + 10);
             CreatePlayAreaCollisionShapes();
+            CreateWallColliders();
             CheckActivatedPickups();
         }
 
@@ -72,6 +74,16 @@ namespace Tankontroller.World
             // Right
             mPlayAreaCollisionShapes[3] = new RectangleAxisAlignedShape(
                 new Transform(new Vector2(mPlayArea.X + mPlayArea.Width + 5, mPlayArea.Y + mPlayArea.Height / 2f)), new Vector2(10, mPlayArea.Height + 20));
+        }
+
+        /// <summary>
+        /// Builds the list of everything a tank or bullet can hit: the walls, then the edges of the play area.
+        /// The walls and play area never change, so this is only done once.
+        /// </summary>
+        private void CreateWallColliders()
+        {
+            mWalls.ForEach(wall => mWallColliders.Add(wall.CollisionShape));
+            mWallColliders.AddRange(mPlayAreaCollisionShapes);
         }
 
         public List<Tank> GetTanksForPlayers(int pPlayerCount)
@@ -153,61 +165,67 @@ namespace Tankontroller.World
             Particles.ParticleManager.Instance().Update(pSeconds);
 
             // Check collisions for each tank
-            for (int tankIndex = 0; tankIndex < mTanks.Count; tankIndex++)
+            foreach (Tank tank in mTanks)
             {
-
-                if (mTanks[tankIndex].GetState() == TankStates.DESTROYED)
+                if (tank.GetState() == TankStates.DESTROYED)
                 {
                     continue;
                 }
-                else
+
+                tank.Update(pSeconds);
+
+                // Bullet collisions
+                tank.HandleBulletCollisions(mTanks, mWallColliders);
+
+                // Pickup collisions
+                foreach (Pickup pickup in mPickups)
                 {
-                    mTanks[tankIndex].Update(pSeconds);
-
-                    // Create a combined list of wall colliders and play area colliders
-                    List<CollisionShape> wallColliders = new();
-                    mWalls.ForEach(wall => wallColliders.Add(wall.CollisionShape));
-                    wallColliders.AddRange(mPlayAreaCollisionShapes);
-
-                    // Bullet collisions
-                    mTanks[tankIndex].HandleBulletCollisions(mTanks, wallColliders);
-
-                    // Pickup collisions
-                    foreach (Pickup pickup in mPickups)
+                    // This is to avoid any dead tanks from picking up a pickup
+                    if (tank.GetState() != TankStates.ALIVE)
                     {
-                        // This is to avoid any dead tanks from picking up a pickup
-                        if (mTanks[tankIndex].GetState() != TankStates.ALIVE)
-                        {
-                            continue;
-                        }
-                        else if (pickup.CollisionShape.Intersects(mTanks[tankIndex].CollisionShape).HasCollided)
-                        {
-                            pickup.TriggerEffect(mTanks[tankIndex]);
-                            mPickups.Remove(pickup);
-                            break;
-                        }
+                        continue;
                     }
-
-                    // Wall collisions
-                    foreach (CollisionShape wall in wallColliders)
+                    else if (pickup.CollisionShape.Intersects(tank.CollisionShape).HasCollided)
                     {
-                        CollisionManager.ResolveTankWallCollision(mTanks[tankIndex], wall);
+                        pickup.TriggerEffect(tank);
+                        mPickups.Remove(pickup);
+                        break;
                     }
+                }
 
-                    // Collisions with other tanks
-                    for (int i = 0; i < mTanks.Count; i++)
-                    {
-                        if (tankIndex == i || mTanks[i].GetState() == TankStates.DESTROYED) // Skip collision with self and if the tanks is destroyed
-                        {
-                            continue;
-                        }
-                        if (mTanks[tankIndex].CollisionShape.Intersects(mTanks[i].CollisionShape).HasCollided)
-                        {
-                            mTanks[tankIndex].PutBack();
-                        }
-                    }
+                ResolveWallCollisions(tank);
+                ResolveTankCollisions(tank);
 
-                    mTanks[tankIndex].CommitPlacement();
+                tank.CommitPlacement();
+            }
+        }
+
+        /// <summary>
+        /// Moves a tank out of any wall or play area edge it is overlapping
+        /// </summary>
+        private void ResolveWallCollisions(Tank pTank)
+        {
+            foreach (CollisionShape wall in mWallColliders)
+            {
+                CollisionManager.ResolveTankWallCollision(pTank, wall);
+            }
+        }
+
+        /// <summary>
+        /// Puts a tank back to its previous position if it is overlapping another tank that has not been destroyed
+        /// </summary>
+        private void ResolveTankCollisions(Tank pTank)
+        {
+            foreach (Tank otherTank in mTanks)
+            {
+                if (otherTank == pTank || otherTank.GetState() == TankStates.DESTROYED)
+                {
+                    continue;
+                }
+
+                if (pTank.CollisionShape.Intersects(otherTank.CollisionShape).HasCollided)
+                {
+                    pTank.PutBack();
                 }
             }
         }

@@ -12,6 +12,7 @@ namespace TankontrollerTests
     {
         private const float TANK_LENGTH = 60f;
         private const float TANK_WIDTH = 40f;
+        private const float DRIVE_SPEED_PER_FRAME = 2f;
 
         // Vertical wall with faces at x = 90 and x = 110. An unrotated tank touches it when its centre is at x = 60.
         private static readonly Vector2 WALL_CENTRE = new(100f, 100f);
@@ -42,6 +43,35 @@ namespace TankontrollerTests
             float halfLength = (TANK_LENGTH / 2f) * MathF.Abs(MathF.Cos(pRotation));
             float halfWidth = (TANK_WIDTH / 2f) * MathF.Abs(MathF.Sin(pRotation));
             return halfLength + halfWidth;
+        }
+
+        /// <summary>
+        /// Drives a tank in a straight line for a number of frames with sliding prevented, resolving walls after every frame.
+        /// </summary>
+        /// <returns> The number of frames that ended with the tank overlapping a wall </returns>
+        private static int DriveFrames(Transform pTransform, CollisionShape pShape, List<CollisionShape> pWalls, Vector2 pDirection, float pRotationPerFrame, int pFrames)
+        {
+            int overlappingFrames = 0;
+
+            for (int frame = 0; frame < pFrames; frame++)
+            {
+                TankPlacement startOfFrame = new(pTransform.Position, pTransform.Rotation);
+                pTransform.Position += pDirection * DRIVE_SPEED_PER_FRAME;
+                pTransform.Rotation += pRotationPerFrame;
+
+                WallCollisionResolver.ResolveFrame(pTransform, pShape, startOfFrame, startOfFrame, pWalls, true);
+
+                foreach (CollisionShape wall in pWalls)
+                {
+                    if (pShape.Intersects(wall).HasCollided)
+                    {
+                        overlappingFrames++;
+                        break;
+                    }
+                }
+            }
+
+            return overlappingFrames;
         }
 
         /// <summary> Resolves a tank that has moved to its current position from pStart, with sliding prevented. </summary>
@@ -475,6 +505,94 @@ namespace TankontrollerTests
             Assert.InRange(transform.Position.X, 52.99f, 53.01f);
             Assert.Equal(100f, transform.Position.Y);
             Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        #endregion
+
+        #region Driving into corners, seams and gaps
+
+        // Inner corner: the vertical wall's face is at x = 90 and the horizontal wall's top is at y = 140,
+        // so the tank is stopped when its centre reaches x = 60 or y = 120.
+
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(30f)]
+        [InlineData(45f)]
+        [InlineData(60f)]
+        [InlineData(90f)]
+        public void ResolveFrame_SlidingPrevented_DrivingIntoInnerCorner_StopsAtTheWalls(float pAngleDegrees)
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(40f, 100f));
+            RectangleAxisAlignedShape verticalWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape horizontalWall = CreateAlignedWall(new Vector2(0f, 150f), HORIZONTAL_WALL_SIZE);
+            float angle = pAngleDegrees * MathF.PI / 180f;
+            Vector2 direction = new(MathF.Cos(angle), MathF.Sin(angle));
+
+            int overlappingFrames = DriveFrames(transform, shape, new List<CollisionShape> { verticalWall, horizontalWall }, direction, 0f, 100);
+
+            Assert.Equal(0, overlappingFrames);
+            Assert.InRange(transform.Position.X, 39f, 60.01f);
+            Assert.InRange(transform.Position.Y, 99f, 120.01f);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_TurningInInnerCorner_NeverEndsAFrameInsideAWall()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(60f, 120f));
+            RectangleAxisAlignedShape verticalWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape horizontalWall = CreateAlignedWall(new Vector2(0f, 150f), HORIZONTAL_WALL_SIZE);
+            Vector2 intoCorner = Vector2.Normalize(new Vector2(1f, 1f));
+
+            int overlappingFrames = DriveFrames(transform, shape, new List<CollisionShape> { verticalWall, horizontalWall }, intoCorner, 0.05f, 200);
+
+            Assert.Equal(0, overlappingFrames);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_DrivingAtAngleIntoSeamBetweenTwoWalls_StopsWithoutCrossingTheSeam()
+        {
+            // The two walls meet at y = 100. The tank first touches at (60, 94.6), well short of the seam.
+            // Sliding along the wall would carry it across the seam.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(40f, 60f));
+            RectangleAxisAlignedShape upperWall = CreateAlignedWall(new Vector2(100f, 0f), new Vector2(20f, 200f));
+            RectangleAxisAlignedShape lowerWall = CreateAlignedWall(new Vector2(100f, 200f), new Vector2(20f, 200f));
+            float angle = 60f * MathF.PI / 180f;
+            Vector2 direction = new(MathF.Cos(angle), MathF.Sin(angle));
+
+            int overlappingFrames = DriveFrames(transform, shape, new List<CollisionShape> { upperWall, lowerWall }, direction, 0f, 100);
+
+            Assert.Equal(0, overlappingFrames);
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.InRange(transform.Position.Y, 94.5f, 94.8f);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_GapNarrowerThanTank_TankDoesNotGetThrough()
+        {
+            // The gap between the walls is 30 tall and the tank is 40 wide.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(40f, 100f));
+            RectangleAxisAlignedShape upperWall = CreateAlignedWall(new Vector2(100f, -230f), new Vector2(20f, 630f));
+            RectangleAxisAlignedShape lowerWall = CreateAlignedWall(new Vector2(100f, 330f), new Vector2(20f, 430f));
+
+            int overlappingFrames = DriveFrames(transform, shape, new List<CollisionShape> { upperWall, lowerWall }, Vector2.UnitX, 0f, 100);
+
+            Assert.Equal(0, overlappingFrames);
+            Assert.InRange(transform.Position.X, 39f, 60.01f);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_GapWiderThanTank_TankDrivesThrough()
+        {
+            // The gap between the walls is 60 tall and the tank is 40 wide.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(40f, 100f));
+            RectangleAxisAlignedShape upperWall = CreateAlignedWall(new Vector2(100f, -130f), new Vector2(20f, 400f));
+            RectangleAxisAlignedShape lowerWall = CreateAlignedWall(new Vector2(100f, 330f), new Vector2(20f, 400f));
+
+            int overlappingFrames = DriveFrames(transform, shape, new List<CollisionShape> { upperWall, lowerWall }, Vector2.UnitX, 0f, 100);
+
+            Assert.Equal(0, overlappingFrames);
+            Assert.True(transform.Position.X > 200f);
+            Assert.Equal(100f, transform.Position.Y);
         }
 
         #endregion

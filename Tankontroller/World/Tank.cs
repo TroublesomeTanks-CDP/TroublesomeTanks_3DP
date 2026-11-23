@@ -66,6 +66,7 @@ namespace Tankontroller.World
 
         private Vector2 mOldPosition;
         private float mOldRotation;
+        private TankPlacement mCommittedPlacement;
 
         private List<Bullet> mBullets;
 
@@ -106,6 +107,7 @@ namespace Tankontroller.World
             mCannonRotation = pRotation;
             mOldPosition = Transform.Position;
             mOldRotation = Transform.Rotation;
+            CommitPlacement();
 
             RectangleShape = new RectangleOrientedShape(Transform, new Vector2((TANK_HEIGHT - TANK_FRONT_BUFFER) * mResolutionScale, TANK_WIDTH * mResolutionScale), 0f, Vector2.Zero);
         }
@@ -135,6 +137,9 @@ namespace Tankontroller.World
         public void SetBulletType(BulletType pBulletType) => BulletType = pBulletType;
 
         public float GetCannonWorldRotation() => mCannonRotation;
+
+        /// <summary> The placement the tank had when CommitPlacement was last called, which is the end of the previous frame </summary>
+        public TankPlacement CommittedPlacement => mCommittedPlacement;
 
         public void GetCorners(Vector2[] pCorners)
         {
@@ -229,6 +234,15 @@ namespace Tankontroller.World
         {
             Transform.Position = mOldPosition;
             Transform.Rotation = mOldRotation;
+        }
+
+        /// <summary>
+        /// Stores the tank's current position and rotation as its committed placement.
+        /// Call this once the tank's position is final for the frame.
+        /// </summary>
+        public void CommitPlacement()
+        {
+            mCommittedPlacement = new TankPlacement(Transform.Position, Transform.Rotation);
         }
 
         public void OffsetPosition(Vector2 delta)

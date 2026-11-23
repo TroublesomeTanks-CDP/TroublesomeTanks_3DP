@@ -206,6 +206,8 @@ namespace Tankontroller.World
                             mTanks[tankIndex].PutBack();
                         }
                     }
+
+                    mTanks[tankIndex].CommitPlacement();
                 }
             }
         }

@@ -617,6 +617,148 @@ namespace TankontrollerTests
 
         #endregion
 
+        #region Deflection
+
+        /// <summary> Resolves a tank that moved from pStart to its current position, with deflection on and no slide allowance. </summary>
+        private static void ResolveWithDeflection(Transform pTransform, CollisionShape pShape, TankPlacement pStartOfFrame, float pMaxTurn, params CollisionShape[] pWalls)
+        {
+            WallSlidingSettings settings = new(true, 0f, pMaxTurn);
+
+            WallCollisionResolver.ResolveFrame(pTransform, pShape, pStartOfFrame, pStartOfFrame, new List<CollisionShape>(pWalls), settings);
+        }
+
+        [Fact]
+        public void ResolveFrame_NoDeflection_StoppedTankKeepsItsRotation()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f), 0.3f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(50f, 100f), 0.3f), 0f, wall);
+
+            Assert.Equal(0.3f, transform.Rotation);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_AngledIntoWall_TurnsTowardsTheWallAndEndsClearOfIt()
+        {
+            // Heading 0.3 radians off the wall's normal, so the turn is the most it may be times sin(0.3).
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f), 0.3f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            Vector2 heading = new(MathF.Cos(0.3f), MathF.Sin(0.3f));
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(70f, 108f) - heading * 20f, 0.3f), 0.1f, wall);
+
+            Assert.InRange(transform.Rotation, 0.3f + 0.1f * MathF.Sin(0.3f) - 0.001f, 0.3f + 0.1f * MathF.Sin(0.3f) + 0.001f);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_HeadOn_DoesNotTurn()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(50f, 100f), 0f), 0.5f, wall);
+
+            Assert.Equal(0f, transform.Rotation);
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_ReversingAtAngle_TurnsTheSameWayAsDrivingAtThatAngle()
+        {
+            // The tank faces away from the wall and reverses into it along the same path as the driving test.
+            float rotation = MathF.PI + 0.3f;
+            Vector2 heading = new(MathF.Cos(0.3f), MathF.Sin(0.3f));
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f), rotation);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(70f, 108f) - heading * 20f, rotation), 0.1f, wall);
+
+            Assert.InRange(transform.Rotation, rotation + 0.1f * MathF.Sin(0.3f) - 0.001f, rotation + 0.1f * MathF.Sin(0.3f) + 0.001f);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_LargeTurnAllowance_StopsOnceTheHeadingRunsAlongTheWall()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f), 0.3f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            Vector2 heading = new(MathF.Cos(0.3f), MathF.Sin(0.3f));
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(70f, 108f) - heading * 20f, 0.3f), 10f, wall);
+
+            Assert.InRange(transform.Rotation, MathF.PI / 2f - 0.001f, MathF.PI / 2f + 0.001f);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_ContactAtWallEnd_DoesNotTurn()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(75f, 20f));
+            RectangleAxisAlignedShape shortWall = CreateAlignedWall(new Vector2(100f, 100f), new Vector2(20f, 20f));
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(50f, 20f), 0f), 0.5f, shortWall);
+
+            Assert.Equal(0f, transform.Rotation);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_NoRoomToTurn_KeepsTheStoppedPlacement()
+        {
+            // The walls in front of and behind the tank leave 62 units. The turned tank needs more, so it stays as it was.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f));
+            RectangleAxisAlignedShape frontWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape backWall = CreateAlignedWall(new Vector2(18f, 100f), VERTICAL_WALL_SIZE);
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(59f, 100f), 0f), 0.2f, frontWall, backWall);
+
+            Assert.Equal(0f, transform.Rotation);
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.InRange(transform.Position.Y, 100f, 101f);
+            Assert.False(shape.Intersects(frontWall).HasCollided);
+            Assert.False(shape.Intersects(backWall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_DrivingForwardAtAngle_SwingsAlongTheWallWithoutOverlapping()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(30f, 100f), 0.5f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            WallSlidingSettings settings = new(true, 0f, 0.05f);
+            int overlappingFrames = 0;
+
+            for (int frame = 0; frame < 150; frame++)
+            {
+                TankPlacement startOfFrame = new(transform.Position, transform.Rotation);
+                transform.Position += new Vector2(MathF.Cos(transform.Rotation), MathF.Sin(transform.Rotation)) * DRIVE_SPEED_PER_FRAME;
+
+                WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, settings);
+
+                if (shape.Intersects(wall).HasCollided)
+                {
+                    overlappingFrames++;
+                }
+            }
+
+            Assert.Equal(0, overlappingFrames);
+            Assert.InRange(transform.Rotation, MathF.PI / 2f - 0.01f, MathF.PI / 2f + 0.01f);
+            Assert.True(transform.Position.Y > 200f);
+        }
+
+        [Fact]
+        public void ResolveFrame_Deflection_MoveClearOfWalls_DoesNotTurn()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(40f, 100f), 0.3f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            ResolveWithDeflection(transform, shape, new TankPlacement(new Vector2(30f, 100f), 0.3f), 0.5f, wall);
+
+            Assert.Equal(0.3f, transform.Rotation);
+        }
+
+        #endregion
+
         #region Driving into corners, seams and gaps
 
         // Inner corner: the vertical wall's face is at x = 90 and the horizontal wall's top is at y = 140,

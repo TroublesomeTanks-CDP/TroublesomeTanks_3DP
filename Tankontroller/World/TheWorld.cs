@@ -193,7 +193,7 @@ namespace Tankontroller.World
                     }
                 }
 
-                CollisionManager.ResolveTankWallCollisions(tank, mWallColliders);
+                CollisionManager.ResolveTankWallCollisions(tank, mWallColliders, pSeconds);
                 ResolveTankCollisions(tank);
 
                 tank.CommitPlacement();

@@ -37,6 +37,9 @@ namespace Tankontroller.Managers
         /// <summary> Number of times the gap between the last clear position and the first blocked position is halved. </summary>
         private const int BISECTION_STEPS = 8;
 
+        /// <summary> Squared distance in pixels below which a tank is not deflected, because its heading is too uncertain to turn it by. </summary>
+        private const float MIN_DEFLECTION_MOVEMENT_SQUARED = 0.0001f;
+
         /// <summary> How closely a collision normal must line up with a wall's face direction to count as a face contact (a dot product, 1 is exact). </summary>
         private const float FACE_NORMAL_TOLERANCE = 0.999f;
 
@@ -86,6 +89,11 @@ namespace Tankontroller.Managers
                     if (blockedMove.IsBlocked && pSettings.SlideAllowance > 0f)
                     {
                         SlideAlongWall(pTransform, pTankShape, blockedMove, target, pSettings.SlideAllowance, pWalls);
+                    }
+
+                    if (blockedMove.IsBlocked && pSettings.MaxDeflectionRadians > 0f)
+                    {
+                        DeflectFromWall(pTransform, pTankShape, blockedMove, movement, pSettings.MaxDeflectionRadians, pWalls);
                     }
 
                     if (!IsOverlappingAny(pTankShape, pWalls))
@@ -195,6 +203,58 @@ namespace Tankontroller.Managers
             Vector2 slideTarget = pBlockedMove.Position + alongWall * pAllowance;
 
             pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pBlockedMove.Position, slideTarget, pWalls).Position;
+        }
+
+        /// <summary>
+        /// Turns a tank that a wall has stopped so that the way it was heading swings towards running along the wall,
+        /// then pushes it clear of the wall. A head-on move is not turned, and a glancing move is turned the most.
+        /// The turn is dropped if the tank cannot be moved clear of the walls afterwards, or if the contact is not along
+        /// a face of the wall.
+        /// </summary>
+        /// <param name="pTransform"> The transform of the tank, at the position where it was stopped. </param>
+        /// <param name="pBlockedMove"> Where the tank was stopped and by which wall. </param>
+        /// <param name="pMovement"> The movement the tank made this frame. It may be backwards. </param>
+        /// <param name="pMaxTurn"> The most the tank may be turned, in radians. </param>
+        private static void DeflectFromWall(Transform pTransform, CollisionShape pTankShape, BlockedMove pBlockedMove, Vector2 pMovement, float pMaxTurn, IReadOnlyList<CollisionShape> pWalls)
+        {
+            if (pBlockedMove.ContactNormal == null || !IsWallFaceNormal(pBlockedMove.BlockingWall, pBlockedMove.ContactNormal.Value))
+            {
+                return;
+            }
+
+            if (pMovement.LengthSquared() < MIN_DEFLECTION_MOVEMENT_SQUARED)
+            {
+                return;
+            }
+
+            Vector2 heading = Vector2.Normalize(pMovement);
+            Vector2 normal = pBlockedMove.ContactNormal.Value;
+            Vector2 alongWall = new Vector2(-normal.Y, normal.X);
+
+            float alignment = Vector2.Dot(heading, alongWall);
+            if (alignment < 0f)
+            {
+                alongWall = -alongWall;
+            }
+
+            float angleToWall = MathF.Acos(Math.Clamp(MathF.Abs(alignment), 0f, 1f));
+            float turn = MathF.Min(pMaxTurn * MathF.Abs(alignment), angleToWall);
+            if (heading.X * alongWall.Y - heading.Y * alongWall.X < 0f)
+            {
+                turn = -turn;
+            }
+
+            Vector2 stoppedPosition = pTransform.Position;
+            float stoppedRotation = pTransform.Rotation;
+
+            pTransform.Rotation += turn;
+            WallPushOutResult result = PushOutOfWall(pTransform, pTankShape, pBlockedMove.BlockingWall);
+
+            if (result == WallPushOutResult.FAILED || IsOverlappingAny(pTankShape, pWalls))
+            {
+                pTransform.Position = stoppedPosition;
+                pTransform.Rotation = stoppedRotation;
+            }
         }
 
         /// <summary>

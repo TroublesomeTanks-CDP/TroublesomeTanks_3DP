@@ -1,11 +1,4 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Audio;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using Tankontroller.World;
-using Tankontroller.World.Bullets;
-using Tankontroller.World.Particles;
+﻿using Tankontroller.World;
 using Tankontroller.World.Shapes;
 
 namespace Tankontroller.Managers
@@ -15,19 +8,21 @@ namespace Tankontroller.Managers
     /// </summary>
     internal static class CollisionManager
     {
+        /// <summary> Whether collision shapes are drawn on screen. Read from the DGS file. </summary>
         public static readonly bool DRAW_COLLISION_SHAPES = DGS.Instance.GetBool("DRAW_COLLISION_SHAPES");
 
         /// <summary>
-        /// This is the collision response for moving a tank away from a wall when a tank collides with a wall
+        /// Moves a tank out of a wall it is overlapping. If the tank cannot be moved clear, it is put back to its previous position.
         /// </summary>
-        /// <returns> If the function fails return false, otherwise returns true</returns>
-        static public bool ResolveTankWallCollision(Tank tank, CollisionShape wall)
+        /// <returns> True if the tank was overlapping the wall and has been moved clear, otherwise false </returns>
+        public static bool ResolveTankWallCollision(Tank pTank, CollisionShape pWall)
         {
-            WallPushOutResult result = WallCollisionResolver.PushOutOfWall(tank.Transform, tank.CollisionShape, wall);
+            WallPushOutResult result = WallCollisionResolver.PushOutOfWall(pTank.Transform, pTank.CollisionShape, pWall);
 
-            // If resolution failed, revert to previous position (safe fallback)
             if (result == WallPushOutResult.FAILED)
-                tank.PutBack();
+            {
+                pTank.PutBack();
+            }
 
             return result == WallPushOutResult.RESOLVED;
         }

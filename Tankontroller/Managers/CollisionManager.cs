@@ -18,6 +18,11 @@ namespace Tankontroller.Managers
         public static bool IsWallSlidingPrevented { get; set; } = DGS.Instance.GetBool("PREVENT_TANK_WALL_SLIDING");
 
         /// <summary>
+        /// How much of its movement along a wall a stopped tank keeps, from 0 to 1. Starts with the value from the DGS file.
+        /// </summary>
+        public static float WallSlideAllowance { get; set; } = DGS.Instance.GetFloat("TANK_WALL_SLIDE_ALLOWANCE");
+
+        /// <summary>
         /// Moves a tank out of every wall it is overlapping, using IsWallSlidingPrevented to decide whether it may slide along them.
         /// If the tank cannot be moved clear of a wall, it is put back to where it was at the end of the last frame when
         /// sliding is prevented, or to the placement PutBack would use when sliding is allowed.
@@ -26,7 +31,7 @@ namespace Tankontroller.Managers
         {
             TankPlacement restorePlacement = IsWallSlidingPrevented ? pTank.CommittedPlacement : pTank.PutBackPlacement;
 
-            WallSlidingSettings settings = new WallSlidingSettings(IsWallSlidingPrevented);
+            WallSlidingSettings settings = new WallSlidingSettings(IsWallSlidingPrevented, WallSlideAllowance);
 
             WallCollisionResolver.ResolveFrame(pTank.Transform, pTank.CollisionShape, pTank.CommittedPlacement, restorePlacement, pWalls, settings);
         }

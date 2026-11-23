@@ -509,6 +509,114 @@ namespace TankontrollerTests
 
         #endregion
 
+        #region Slide allowance
+
+        private static Vector2 ResolveAngledMoveWithAllowance(float pAllowance, params CollisionShape[] pWalls)
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(75f, 130f));
+            TankPlacement startOfFrame = new(new Vector2(50f, 100f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape>(pWalls), new WallSlidingSettings(true, pAllowance));
+
+            return transform.Position;
+        }
+
+        [Fact]
+        public void ResolveFrame_ZeroAllowance_MatchesSlidingPrevented()
+        {
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            Vector2 position = ResolveAngledMoveWithAllowance(0f, wall);
+
+            Assert.InRange(position.X, 59.98f, 60.01f);
+            Assert.InRange(position.Y, 111.98f, 112.02f);
+        }
+
+        [Fact]
+        public void ResolveFrame_FullAllowance_EndsWhereSlidingWould()
+        {
+            // The same move with sliding allowed ends at (60, 130).
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            Vector2 position = ResolveAngledMoveWithAllowance(1f, wall);
+
+            Assert.InRange(position.X, 59.98f, 60.01f);
+            Assert.InRange(position.Y, 129.98f, 130.02f);
+        }
+
+        [Fact]
+        public void ResolveFrame_HalfAllowance_KeepsHalfTheMovementAlongTheWall()
+        {
+            // Stopped at (60, 112) with 18 units left along the wall.
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+
+            Vector2 position = ResolveAngledMoveWithAllowance(0.5f, wall);
+
+            Assert.InRange(position.X, 59.98f, 60.01f);
+            Assert.InRange(position.Y, 120.98f, 121.02f);
+        }
+
+        [Fact]
+        public void ResolveFrame_AllowanceOutsideZeroToOne_IsClamped()
+        {
+            Assert.Equal(1f, new WallSlidingSettings(true, 3f).SlideAllowance);
+            Assert.Equal(0f, new WallSlidingSettings(true, -1f).SlideAllowance);
+        }
+
+        [Fact]
+        public void ResolveFrame_FullAllowance_SlideStopsAtASecondWall()
+        {
+            // The slide down the vertical wall is stopped by the horizontal wall, whose face is at y = 140.
+            RectangleAxisAlignedShape verticalWall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            RectangleAxisAlignedShape horizontalWall = CreateAlignedWall(new Vector2(0f, 150f), HORIZONTAL_WALL_SIZE);
+
+            Vector2 position = ResolveAngledMoveWithAllowance(1f, verticalWall, horizontalWall);
+
+            Assert.InRange(position.X, 59.98f, 60.01f);
+            Assert.InRange(position.Y, 119.98f, 120.02f);
+        }
+
+        [Fact]
+        public void ResolveFrame_FullAllowance_HeadOnMoveStillStopsAtWall()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement startOfFrame = new(new Vector2(50f, 100f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, new WallSlidingSettings(true, 1f));
+
+            Assert.InRange(transform.Position.X, 59.98f, 60.01f);
+            Assert.Equal(100f, transform.Position.Y);
+        }
+
+        [Fact]
+        public void ResolveFrame_FullAllowance_ContactAtWallEnd_DoesNotSlide()
+        {
+            // The tank drives into the top end of a short wall, so the contact is not along a face.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(75f, 20f));
+            RectangleAxisAlignedShape shortWall = CreateAlignedWall(new Vector2(100f, 100f), new Vector2(20f, 20f));
+            TankPlacement startOfFrame = new(new Vector2(50f, 20f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { shortWall }, new WallSlidingSettings(true, 1f));
+
+            Assert.False(shape.Intersects(shortWall).HasCollided);
+            Assert.Equal(20f, transform.Position.Y);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingAllowed_IgnoresAllowance()
+        {
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 108f));
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement startOfFrame = new(new Vector2(50f, 100f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, new WallSlidingSettings(false, 0f));
+
+            Assert.Equal(new Vector2(60f, 108f), transform.Position);
+        }
+
+        #endregion
+
         #region Driving into corners, seams and gaps
 
         // Inner corner: the vertical wall's face is at x = 90 and the horizontal wall's top is at y = 140,

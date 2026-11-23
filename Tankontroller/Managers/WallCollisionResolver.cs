@@ -47,7 +47,8 @@ namespace Tankontroller.Managers
         /// <br></br>
         /// If sliding is prevented, the tank stops where its movement first touches a wall. If the tank was already
         /// overlapping a wall at the start of the frame, or turned into one, it is pushed straight out of the wall
-        /// first and then moved as far as it can go.
+        /// first and then moved as far as it can go. If the settings give a slide allowance, a stopped tank then
+        /// keeps that share of its movement along the face of the wall.
         /// </summary>
         /// <param name="pTransform"> The transform of the tank, already moved for this frame. It is moved back if it overlaps a wall. </param>
         /// <param name="pTankShape"> The collision shape of the tank. It must be owned by pTransform. </param>
@@ -80,7 +81,13 @@ namespace Tankontroller.Managers
                 if (!IsOverlappingAny(pTankShape, pWalls))
                 {
                     Vector2 target = pTransform.Position + movement;
-                    pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pTransform.Position, target, pWalls).Position;
+                    BlockedMove blockedMove = FindFurthestClearPosition(pTransform, pTankShape, pTransform.Position, target, pWalls);
+                    pTransform.Position = blockedMove.Position;
+                    if (blockedMove.IsBlocked && pSettings.SlideAllowance > 0f)
+                    {
+                        SlideAlongWall(pTransform, pTankShape, blockedMove, target, pSettings.SlideAllowance, pWalls);
+                    }
+
                     if (!IsOverlappingAny(pTankShape, pWalls))
                     {
                         return;
@@ -165,6 +172,29 @@ namespace Tankontroller.Managers
             }
 
             return new BlockedMove(clearPosition, blockingWall, pTankShape.Intersects(blockingWall).CollisionNormal);
+        }
+
+        /// <summary>
+        /// Moves a tank that a wall has stopped along the face of that wall, by a share of the movement it had left.
+        /// Does nothing if the contact is not along a face, such as at a corner or the end of a wall.
+        /// </summary>
+        /// <param name="pTransform"> The transform of the tank, at the position where it was stopped. </param>
+        /// <param name="pBlockedMove"> Where the tank was stopped and by which wall. </param>
+        /// <param name="pTarget"> Where the tank would have ended up if nothing had stopped it. </param>
+        /// <param name="pAllowance"> The share of the movement along the wall to keep, from 0 to 1. </param>
+        private static void SlideAlongWall(Transform pTransform, CollisionShape pTankShape, BlockedMove pBlockedMove, Vector2 pTarget, float pAllowance, IReadOnlyList<CollisionShape> pWalls)
+        {
+            if (pBlockedMove.ContactNormal == null || !IsWallFaceNormal(pBlockedMove.BlockingWall, pBlockedMove.ContactNormal.Value))
+            {
+                return;
+            }
+
+            Vector2 normal = pBlockedMove.ContactNormal.Value;
+            Vector2 remaining = pTarget - pBlockedMove.Position;
+            Vector2 alongWall = remaining - Vector2.Dot(remaining, normal) * normal;
+            Vector2 slideTarget = pBlockedMove.Position + alongWall * pAllowance;
+
+            pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pBlockedMove.Position, slideTarget, pWalls).Position;
         }
 
         /// <summary>

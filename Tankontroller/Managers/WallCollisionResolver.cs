@@ -63,6 +63,7 @@ namespace Tankontroller.Managers
             if (pPreventSliding)
             {
                 Vector2 movedPosition = pTransform.Position;
+                float movedRotation = pTransform.Rotation;
                 Vector2 movement = movedPosition - pStartOfFrame.Position;
 
                 // Put the tank back to its start position, turned the way it is now. If turning swings it into
@@ -84,6 +85,7 @@ namespace Tankontroller.Managers
                 }
 
                 pTransform.Position = movedPosition;
+                pTransform.Rotation = movedRotation;
             }
 
             PushOutOfWalls(pTransform, pTankShape, pRestorePlacement, pWalls);

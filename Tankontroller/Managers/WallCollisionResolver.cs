@@ -51,16 +51,16 @@ namespace Tankontroller.Managers
         /// <param name="pStartOfFrame"> Where the tank was before it moved this frame. </param>
         /// <param name="pRestorePlacement"> Where the tank is put back to when a push-out fails. </param>
         /// <param name="pWalls"> The collision shapes of the walls. </param>
-        /// <param name="pPreventSliding"> True to stop the tank at the wall, false to let it slide along the wall. </param>
+        /// <param name="pSettings"> Whether the tank may slide along the walls it touches. </param>
         public static void ResolveFrame(Transform pTransform, CollisionShape pTankShape, TankPlacement pStartOfFrame,
-            TankPlacement pRestorePlacement, IReadOnlyList<CollisionShape> pWalls, bool pPreventSliding)
+            TankPlacement pRestorePlacement, IReadOnlyList<CollisionShape> pWalls, WallSlidingSettings pSettings)
         {
             if (!IsOverlappingAny(pTankShape, pWalls))
             {
                 return;
             }
 
-            if (pPreventSliding)
+            if (pSettings.PreventSliding)
             {
                 Vector2 movedPosition = pTransform.Position;
                 float movedRotation = pTransform.Rotation;

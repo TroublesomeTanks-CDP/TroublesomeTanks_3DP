@@ -26,7 +26,9 @@ namespace Tankontroller.Managers
         {
             TankPlacement restorePlacement = IsWallSlidingPrevented ? pTank.CommittedPlacement : pTank.PutBackPlacement;
 
-            WallCollisionResolver.ResolveFrame(pTank.Transform, pTank.CollisionShape, pTank.CommittedPlacement, restorePlacement, pWalls, IsWallSlidingPrevented);
+            WallSlidingSettings settings = new WallSlidingSettings(IsWallSlidingPrevented);
+
+            WallCollisionResolver.ResolveFrame(pTank.Transform, pTank.CollisionShape, pTank.CommittedPlacement, restorePlacement, pWalls, settings);
         }
     }
 }

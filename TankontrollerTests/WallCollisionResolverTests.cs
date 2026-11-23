@@ -59,7 +59,7 @@ namespace TankontrollerTests
                 pTransform.Position += pDirection * DRIVE_SPEED_PER_FRAME;
                 pTransform.Rotation += pRotationPerFrame;
 
-                WallCollisionResolver.ResolveFrame(pTransform, pShape, startOfFrame, startOfFrame, pWalls, true);
+                WallCollisionResolver.ResolveFrame(pTransform, pShape, startOfFrame, startOfFrame, pWalls, WallSlidingSettings.SlidingPrevented);
 
                 foreach (CollisionShape wall in pWalls)
                 {
@@ -79,7 +79,7 @@ namespace TankontrollerTests
         {
             TankPlacement startOfFrame = new(pStart, pTransform.Rotation);
 
-            WallCollisionResolver.ResolveFrame(pTransform, pShape, startOfFrame, startOfFrame, pWalls, true);
+            WallCollisionResolver.ResolveFrame(pTransform, pShape, startOfFrame, startOfFrame, pWalls, WallSlidingSettings.SlidingPrevented);
         }
 
         #endregion
@@ -250,7 +250,7 @@ namespace TankontrollerTests
             (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(70f, 100f));
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape>(), false);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape>(), WallSlidingSettings.SlidingAllowed);
 
             Assert.Equal(new Vector2(70f, 100f), transform.Position);
         }
@@ -262,7 +262,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { wall }, false);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { wall }, WallSlidingSettings.SlidingAllowed);
 
             Assert.Equal(new Vector2(50f, 100f), transform.Position);
         }
@@ -274,7 +274,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { wall }, false);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { wall }, WallSlidingSettings.SlidingAllowed);
 
             Assert.Equal(new Vector2(60f, 100f), transform.Position);
         }
@@ -293,7 +293,7 @@ namespace TankontrollerTests
                 : new List<CollisionShape> { horizontalWall, verticalWall };
             TankPlacement restorePlacement = new(Vector2.Zero, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, walls, false);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, walls, WallSlidingSettings.SlidingAllowed);
 
             Assert.Equal(new Vector2(60f, 120f), transform.Position);
             Assert.False(shape.Intersects(verticalWall).HasCollided);
@@ -307,7 +307,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape hugeWall = CreateAlignedWall(WALL_CENTRE, new Vector2(2000f, 2000f));
             TankPlacement restorePlacement = new(new Vector2(10f, 20f), 0.5f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { hugeWall }, false);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { hugeWall }, WallSlidingSettings.SlidingAllowed);
 
             Assert.Equal(restorePlacement.Position, transform.Position);
             Assert.Equal(restorePlacement.Rotation, transform.Rotation);
@@ -321,7 +321,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape smallWall = CreateAlignedWall(new Vector2(10f, 20f), new Vector2(20f, 20f));
             TankPlacement restorePlacement = new(new Vector2(10f, 20f), 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { hugeWall, smallWall }, false);
+            WallCollisionResolver.ResolveFrame(transform, shape, restorePlacement, restorePlacement, new List<CollisionShape> { hugeWall, smallWall }, WallSlidingSettings.SlidingAllowed);
 
             // The tank is put back on top of the small wall, then pushed along the x axis until it is clear.
             Assert.Equal(new Vector2(50f, 20f), transform.Position);
@@ -339,7 +339,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement startOfFrame = new(start, 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, false);
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, WallSlidingSettings.SlidingAllowed);
 
             Assert.Equal(new Vector2(60f, 108f), transform.Position);
         }
@@ -468,7 +468,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement startOfFrame = new(new Vector2(60f, 100f), 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, true);
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, WallSlidingSettings.SlidingPrevented);
 
             Assert.InRange(transform.Position.X, 53f, 54.7f);
             Assert.Equal(100f, transform.Position.Y);
@@ -485,7 +485,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement startOfFrame = new(new Vector2(60f, 100f), 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, true);
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, WallSlidingSettings.SlidingPrevented);
 
             Assert.InRange(transform.Position.Y, 99.99f, 104f);
             Assert.Equal(0.3f, transform.Rotation);
@@ -500,7 +500,7 @@ namespace TankontrollerTests
             RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
             TankPlacement startOfFrame = new(new Vector2(60f, 100f), 0f);
 
-            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, true);
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, WallSlidingSettings.SlidingPrevented);
 
             Assert.InRange(transform.Position.X, 52.99f, 53.01f);
             Assert.Equal(100f, transform.Position.Y);

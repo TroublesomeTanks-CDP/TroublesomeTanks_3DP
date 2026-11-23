@@ -43,7 +43,8 @@ namespace Tankontroller.Managers
         /// If sliding is allowed, the tank is pushed out of each wall in turn and keeps any movement along the wall.
         /// <br></br>
         /// If sliding is prevented, the tank stops where its movement first touches a wall. If the tank was already
-        /// overlapping a wall at the start of the frame (or turned into one), it is pushed out as above instead.
+        /// overlapping a wall at the start of the frame, or turned into one, it is pushed straight out of the wall
+        /// first and then moved as far as it can go.
         /// </summary>
         /// <param name="pTransform"> The transform of the tank, already moved for this frame. It is moved back if it overlaps a wall. </param>
         /// <param name="pTankShape"> The collision shape of the tank. It must be owned by pTransform. </param>
@@ -62,12 +63,20 @@ namespace Tankontroller.Managers
             if (pPreventSliding)
             {
                 Vector2 movedPosition = pTransform.Position;
+                Vector2 movement = movedPosition - pStartOfFrame.Position;
 
-                // Check the tank at its start position, but turned the way it is now.
+                // Put the tank back to its start position, turned the way it is now. If turning swings it into
+                // a wall, push it straight out of the wall before it is moved.
                 pTransform.Position = pStartOfFrame.Position;
+                if (IsOverlappingAny(pTankShape, pWalls))
+                {
+                    PushOutOfWalls(pTransform, pTankShape, pRestorePlacement, pWalls);
+                }
+
                 if (!IsOverlappingAny(pTankShape, pWalls))
                 {
-                    pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pStartOfFrame.Position, movedPosition, pWalls);
+                    Vector2 target = pTransform.Position + movement;
+                    pTransform.Position = FindFurthestClearPosition(pTransform, pTankShape, pTransform.Position, target, pWalls);
                     if (!IsOverlappingAny(pTankShape, pWalls))
                     {
                         return;

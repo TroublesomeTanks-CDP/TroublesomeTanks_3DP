@@ -446,6 +446,37 @@ namespace TankontrollerTests
             Assert.False(shape.Intersects(wall).HasCollided);
         }
 
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_TurningAndMovingAlongWall_DoesNotSlide()
+        {
+            // One frame of a single track drive: the tank turns and moves 8 along the wall.
+            // Sliding would leave it at y = 108. It should be turned away from the wall first and then stopped by it.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(61f, 108f), 0.3f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement startOfFrame = new(new Vector2(60f, 100f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, true);
+
+            Assert.InRange(transform.Position.Y, 99.99f, 104f);
+            Assert.Equal(0.3f, transform.Rotation);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_TurningAndMovingAwayFromWall_MovesAwayFully()
+        {
+            // The turn is pushed out of the wall first, then the whole 2 unit move away from the wall is kept.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(58f, 100f), 0.3f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement startOfFrame = new(new Vector2(60f, 100f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, true);
+
+            Assert.InRange(transform.Position.X, 52.99f, 53.01f);
+            Assert.Equal(100f, transform.Position.Y);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
         #endregion
 
         #region Collision normals for a rotated tank

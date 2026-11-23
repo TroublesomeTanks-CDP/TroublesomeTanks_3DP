@@ -430,6 +430,63 @@ namespace TankontrollerTests
             Assert.False(shape.Intersects(horizontalWall).HasCollided);
         }
 
+        [Fact]
+        public void ResolveFrame_SlidingPrevented_TurningOnSpotAgainstWall_PushesAwayWithoutMovingAlongWall()
+        {
+            // The tank touches the wall at (60, 100), then turns without moving, so its corners swing into the wall.
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(60f, 100f), 0.4f);
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            TankPlacement startOfFrame = new(new Vector2(60f, 100f), 0f);
+
+            WallCollisionResolver.ResolveFrame(transform, shape, startOfFrame, startOfFrame, new List<CollisionShape> { wall }, true);
+
+            Assert.InRange(transform.Position.X, 53f, 54.7f);
+            Assert.Equal(100f, transform.Position.Y);
+            Assert.Equal(0.4f, transform.Rotation);
+            Assert.False(shape.Intersects(wall).HasCollided);
+        }
+
+        #endregion
+
+        #region Collision normals for a rotated tank
+
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(0.3f)]
+        [InlineData(0.7f)]
+        [InlineData(1.0f)]
+        [InlineData(1.4f)]
+        [InlineData(1.5708f)]
+        public void Intersects_RotatedTankOverlappingWallFace_NormalPointsAwayFromTheFace(float pRotation)
+        {
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(90f - TankHalfWidthAlongX(pRotation) + 3f, 100f), pRotation);
+
+            CollisionEvent collision = shape.Intersects(wall);
+
+            Vector2 normal = collision.CollisionNormal ?? Vector2.Zero;
+            Assert.True(collision.HasCollided);
+            Assert.InRange(normal.X, -1.001f, -0.999f);
+            Assert.InRange(normal.Y, -0.001f, 0.001f);
+        }
+
+        [Fact]
+        public void Intersects_RotatedTankCornerOverlappingWallEnd_NormalIsATankAxis()
+        {
+            // Near the end of the wall the shortest way out is along the tank's own side axis, which is angled away from the wall's face.
+            float rotation = 1.08f;
+            RectangleAxisAlignedShape wall = CreateAlignedWall(WALL_CENTRE, VERTICAL_WALL_SIZE);
+            (Transform transform, RectangleOrientedShape shape) = CreateTank(new Vector2(90f - TankHalfWidthAlongX(rotation) + 3f, 285f), rotation);
+
+            CollisionEvent collision = shape.Intersects(wall);
+
+            Vector2 normal = collision.CollisionNormal ?? Vector2.Zero;
+            Vector2 tankSideAxis = new(-MathF.Sin(rotation), MathF.Cos(rotation));
+            Assert.True(collision.HasCollided);
+            Assert.InRange(Vector2.Dot(normal, tankSideAxis), 0.999f, 1.001f);
+            Assert.True(normal.Y > 0.4f);
+        }
+
         #endregion
     }
 }

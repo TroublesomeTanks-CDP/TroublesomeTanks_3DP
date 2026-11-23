@@ -12,6 +12,11 @@ namespace Tankontroller.Managers
         public static readonly bool DRAW_COLLISION_SHAPES = DGS.Instance.GetBool("DRAW_COLLISION_SHAPES");
 
         /// <summary>
+        /// Whether tanks are stopped from sliding along walls. Starts with the value from the DGS file.
+        /// </summary>
+        public static bool IsWallSlidingPrevented { get; set; } = DGS.Instance.GetBool("PREVENT_TANK_WALL_SLIDING");
+
+        /// <summary>
         /// Moves a tank out of a wall it is overlapping. If the tank cannot be moved clear, it is put back to its previous position.
         /// </summary>
         /// <returns> True if the tank was overlapping the wall and has been moved clear, otherwise false </returns>
